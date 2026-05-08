@@ -1,0 +1,39 @@
+workflows:
+  ios-sidestore-build:
+    name: Build iOS IPA for SideStore
+    instance_type: mac_mini_m1
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install dependencies
+        script: |
+          flutter packages pub get
+
+      - name: Build iOS without codesign
+        script: |
+          # O Codemagic tem um ambiente muito mais estável, então o comando nativo funciona bem.
+          # Isso vai gerar o seu "Runner.app" sem pedir certificado da Apple.
+          flutter build ios --release --no-codesign
+
+      - name: Package into IPA
+        script: |
+          # Entra na pasta onde o Flutter salvou o Runner.app
+          cd build/ios/iphoneos
+          
+          # Cria a estrutura exata que o SideStore precisa
+          mkdir -p Payload
+          cp -R Runner.app Payload/
+          
+          # Remove lixos de assinatura (se houver) para evitar "Invalid Format"
+          rm -rf Payload/Runner.app/_CodeSignature
+          
+          # Compacta como .ipa
+          zip -qr app.ipa Payload
+          
+          # Move para o diretório de exportação do Codemagic
+          mv app.ipa $CM_EXPORT_DIR/
+
+    artifacts:
+      - $CM_EXPORT_DIR/app.ipa
