@@ -12,6 +12,7 @@ class HomeScreen extends StatefulWidget {
   final Function(String) onGroupSelected;
   final Function(Channel) onPlayChannel;
   final Function() onSearch;
+  final Function() onCloseSearch;
   final bool showSearch;
 
   const HomeScreen({
@@ -23,6 +24,7 @@ class HomeScreen extends StatefulWidget {
     required this.onGroupSelected,
     required this.onPlayChannel,
     required this.onSearch,
+    required this.onCloseSearch,
     required this.showSearch,
   }) : super(key: key);
 
@@ -37,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return SearchScreen(
         playlist: widget.playlist,
         onPlay: widget.onPlayChannel,
-        onClose: () => widget.onSearch(), // Actually need to close search
+        onClose: widget.onCloseSearch,
       );
     }
 

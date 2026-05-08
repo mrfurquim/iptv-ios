@@ -23,7 +23,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   Future<void> _initializePlayer() async {
-    _videoPlayerController = VideoPlayerController.network(widget.channel.url);
+    _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.channel.url));
     await _videoPlayerController!.initialize();
     _chewieController = ChewieController(
       videoPlayerController: _videoPlayerController!,

@@ -140,7 +140,6 @@ class _SearchScreenState extends State<SearchScreen> {
           trailing: const Icon(Icons.play_arrow, color: Colors.blue),
           onTap: () {
             widget.onPlay(channel);
-            Navigator.pop(context);
           },
         );
       },

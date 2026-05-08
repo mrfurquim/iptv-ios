@@ -5,6 +5,7 @@ import 'package:iptv_player/services/storage_service.dart';
 import 'package:iptv_player/services/api_service.dart';
 import 'package:iptv_player/models/playlist.dart';
 import 'package:iptv_player/models/channel.dart';
+import 'package:iptv_player/screens/player_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,6 @@ class _MyAppState extends State<MyApp> {
   String _selectedGroup = '';
   bool _isLoading = true;
   String? _error;
-  Channel? _playingChannel;
   bool _showSearch = false;
 
   final _storageService = StorageService();
@@ -128,19 +128,6 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  void _playChannel(Channel channel) {
-    setState(() {
-      _playingChannel = channel;
-      _showSearch = false;
-    });
-  }
-
-  void _closePlayer() {
-    setState(() {
-      _playingChannel = null;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -152,15 +139,14 @@ class _MyAppState extends State<MyApp> {
           backgroundColor: Colors.grey[900],
         ),
       ),
-      home: _buildHome(),
+      home: Builder(
+        builder: (context) => _buildHome(context),
+      ),
       debugShowCheckedModeBanner: false,
     );
   }
 
-  Widget _buildHome() {
-    if (_playingChannel != null) {
-      return _buildPlayer();
-    }
+  Widget _buildHome(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
         body: Center(
@@ -207,19 +193,16 @@ class _MyAppState extends State<MyApp> {
       selectedGroup: _selectedGroup,
       onTypeChanged: _selectType,
       onGroupSelected: (group) => setState(() => _selectedGroup = group),
-      onPlayChannel: _playChannel,
+      onPlayChannel: (channel) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => PlayerScreen(channel: channel),
+          ),
+        );
+      },
       onSearch: () => setState(() => _showSearch = true),
+      onCloseSearch: () => setState(() => _showSearch = false),
       showSearch: _showSearch,
-    );
-  }
-
-  Widget _buildPlayer() {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Text('Player para ${_playingChannel!.name}'),
-        // Here we would integrate video_player
-      ),
     );
   }
 }
