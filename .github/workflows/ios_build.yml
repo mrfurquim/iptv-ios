@@ -23,55 +23,37 @@ jobs:
 
       - name: Prepare iOS Project
         run: |
-          # 1. Force iOS 14.0 in Xcode project
+          # 1. Disable Code Signing & Xcode 15 Sandboxing for the Runner target ONLY
+          echo "CODE_SIGNING_ALLOWED = NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED = NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_IDENTITY = \"-\"" >> ios/Flutter/Release.xcconfig
+          echo "EXPANDED_CODE_SIGN_IDENTITY = \"-\"" >> ios/Flutter/Release.xcconfig
+          echo "ENABLE_USER_SCRIPT_SANDBOXING = NO" >> ios/Flutter/Release.xcconfig
+          echo "COMPILER_INDEX_STORE_ENABLE = NO" >> ios/Flutter/Release.xcconfig
+          
+          # 2. Force iOS 14.0 in Xcode project
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 11.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' ios/Runner.xcodeproj/project.pbxproj || true
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' ios/Runner.xcodeproj/project.pbxproj || true
           
-          # 2. Force iOS 14.0 in Podfile
+          # 3. Force iOS 14.0 & Disable Sandboxing in all CocoaPods targets
           if [ -f ios/Podfile ]; then
             sed -i '' "s/^# platform :ios.*/platform :ios, '14.0'/g" ios/Podfile
             sed -i '' "s/^platform :ios.*/platform :ios, '14.0'/g" ios/Podfile
             
-            # Inject post_install hook to force all Pods to compile for iOS 14.0
             ruby -i -e "puts ARGF.read.gsub(/flutter_additional_ios_build_settings\(target\)/, %q{flutter_additional_ios_build_settings(target)
             target.build_configurations.each do |config|
               config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+              config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
             end})" ios/Podfile
           fi
 
-      - name: Build Flutter (AOT & Frameworks)
-        run: |
-          # This compiles Dart and generates Pods, but might fail at Xcode signing. We ignore the error.
-          flutter build ios --release --no-codesign || true
-
-      - name: Build iOS App with Xcode
-        run: |
-          cd ios
-          # The -destination, COMPILER_INDEX_STORE_ENABLE=NO and ENABLE_USER_SCRIPT_SANDBOXING=NO fix Xcode 15 bugs
-          xcodebuild clean build \
-            -workspace Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            CODE_SIGNING_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            ENABLE_USER_SCRIPT_SANDBOXING=NO
+      - name: Build iOS App
+        run: flutter build ios --release --no-codesign
 
       - name: Create IPA Payload
         run: |
           mkdir -p Payload
-          # xcodebuild outputs the .app in a different path when using standard build
-          # Usually it's in build/Release-iphoneos/ or DerivedData
-          # But flutter build ios configures SYMROOT. Let's find the .app dynamically
-          APP_PATH=$(find . -name "Runner.app" | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "Runner.app not found!"
-            exit 1
-          fi
-          mv "$APP_PATH" Payload/
+          mv build/ios/iphoneos/Runner.app Payload/
           zip -r app.ipa Payload
           
       - name: Upload IPA Artifact
