@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:io';
 
 class StorageService {
@@ -16,8 +17,9 @@ class StorageService {
   Future<bool> saveM3U(String content) async {
     try {
       if (kIsWeb) {
-        final prefs = await SharedPreferences.getInstance();
-        return await prefs.setString(_m3uCacheKey, content);
+        var box = await Hive.openBox('iptvCache');
+        await box.put(_m3uCacheKey, content);
+        return true;
       } else {
         final file = await _getLocalFile();
         if (file != null) {
@@ -27,7 +29,7 @@ class StorageService {
         return false;
       }
     } catch (e) {
-      print('Error saving M3U: $e');
+      if (kDebugMode) print('Error saving M3U: $e');
       return false;
     }
   }
@@ -35,8 +37,8 @@ class StorageService {
   Future<String?> loadM3U() async {
     try {
       if (kIsWeb) {
-        final prefs = await SharedPreferences.getInstance();
-        return prefs.getString(_m3uCacheKey);
+        var box = await Hive.openBox('iptvCache');
+        return box.get(_m3uCacheKey) as String?;
       } else {
         final file = await _getLocalFile();
         if (file != null && await file.exists()) {
@@ -45,15 +47,15 @@ class StorageService {
         return null;
       }
     } catch (e) {
-      print('Error loading M3U: $e');
+      if (kDebugMode) print('Error loading M3U: $e');
       return null;
     }
   }
 
   Future<void> clearM3UCache() async {
     if (kIsWeb) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_m3uCacheKey);
+      var box = await Hive.openBox('iptvCache');
+      await box.delete(_m3uCacheKey);
     } else {
       final file = await _getLocalFile();
       if (file != null && await file.exists()) {

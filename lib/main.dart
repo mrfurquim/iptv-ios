@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:iptv_player/screens/home_screen.dart';
 import 'package:iptv_player/services/storage_service.dart';
 import 'package:iptv_player/services/api_service.dart';
@@ -9,6 +10,7 @@ import 'package:iptv_player/screens/player_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.landscapeLeft,
