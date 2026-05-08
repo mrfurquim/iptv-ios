@@ -61,32 +61,105 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           _buildTypeSelector(),
-          if (widget.selectedGroup == '__FAVORITOS__')
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text('Favoritos', style: TextStyle(fontSize: 18)),
-            ),
+          _buildGroupFilter(groups),
           Expanded(
-            child: channels.isEmpty
-                ? const Center(child: Text('Nenhum conteúdo encontrado'))
-                : GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 0.8,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    itemCount: channels.length,
-                    itemBuilder: (context, index) {
-                      final channel = channels[index];
-                      return _buildChannelCard(channel);
-                    },
-                  ),
+            child: widget.selectedType == ChannelType.series
+                ? _buildSeriesGrid()
+                : _buildChannelGrid(channels),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildGroupFilter(List<String> groups) {
+    // If the selected group is not in the current list of groups (and not Favorites), 
+    // we might have an empty view. We let the user see all groups to pick one.
+    return Container(
+      height: 40,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: groups.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _buildFilterChip('Favoritos', '__FAVORITOS__');
+          }
+          final group = groups[index - 1];
+          return _buildFilterChip(group, group);
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, String value) {
+    final isSelected = widget.selectedGroup == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (selected) {
+          if (selected) {
+            widget.onGroupSelected(value);
+          }
+        },
+        selectedColor: Colors.blue,
+        backgroundColor: Colors.grey[800],
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : Colors.grey[300],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChannelGrid(List<Channel> channels) {
+    if (channels.isEmpty) {
+      return const Center(child: Text('Nenhum conteúdo encontrado nesta categoria'));
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: channels.length,
+      itemBuilder: (context, index) {
+        final channel = channels[index];
+        return _buildChannelCard(channel);
+      },
+    );
+  }
+
+  Widget _buildSeriesGrid() {
+    final seriesList = _getCurrentSeries();
+    if (seriesList.isEmpty) {
+      return const Center(child: Text('Nenhuma série encontrada nesta categoria'));
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.8,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: seriesList.length,
+      itemBuilder: (context, index) {
+        final series = seriesList[index];
+        return _buildSeriesCard(series);
+      },
+    );
+  }
+
+  List<Series> _getCurrentSeries() {
+    if (widget.selectedGroup == '__FAVORITOS__') {
+      return []; // To be implemented for series
+    }
+    return widget.playlist.series[widget.selectedGroup] ?? [];
   }
 
   Widget _buildTypeSelector() {
@@ -217,5 +290,107 @@ class _HomeScreenState extends State<HomeScreen> {
       case ChannelType.series:
         return []; // Series handled differently
     }
+  }
+
+  Widget _buildSeriesCard(Series series) {
+    return Card(
+      color: Colors.grey[900],
+      child: InkWell(
+        onTap: () => _showSeriesDialog(series),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (series.logo != null && series.logo!.isNotEmpty)
+              Image.network(
+                series.logo!,
+                height: 60,
+                width: 60,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => _seriesPlaceholder(series),
+              )
+            else
+              _seriesPlaceholder(series),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Text(
+                series.title,
+                style: const TextStyle(fontSize: 12, color: Colors.white),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _seriesPlaceholder(Series series) {
+    return Container(
+      height: 60,
+      width: 60,
+      decoration: BoxDecoration(
+        color: Colors.grey[800],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Text(
+          series.title.isNotEmpty ? series.title[0] : '?',
+          style: const TextStyle(fontSize: 24, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  void _showSeriesDialog(Series series) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      isScrollControlled: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.5,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            final seasons = series.seasons.keys.toList()..sort((a, b) => (int.tryParse(a) ?? 0).compareTo(int.tryParse(b) ?? 0));
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(series.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: seasons.length,
+                    itemBuilder: (context, index) {
+                      final season = seasons[index];
+                      final episodes = series.seasons[season]!..sort((a, b) {
+                         return a.name.compareTo(b.name);
+                      });
+                      return ExpansionTile(
+                        title: Text('Temporada $season', style: const TextStyle(color: Colors.white)),
+                        children: episodes.map((episode) => ListTile(
+                          title: Text(episode.name, style: TextStyle(color: Colors.grey[300])),
+                          trailing: const Icon(Icons.play_arrow, color: Colors.blue),
+                          onTap: () {
+                            Navigator.pop(context);
+                            widget.onPlayChannel(episode);
+                          },
+                        )).toList(),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 }

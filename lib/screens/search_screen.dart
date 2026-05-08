@@ -49,6 +49,20 @@ class _SearchScreenState extends State<SearchScreen> {
       }
     }
 
+    // Search in series episodes
+    for (final seriesGroup in widget.playlist.series.values) {
+      for (final series in seriesGroup) {
+        bool seriesMatched = series.title.toLowerCase().contains(q);
+        for (final episodes in series.seasons.values) {
+          for (final episode in episodes) {
+            if (seriesMatched || episode.name.toLowerCase().contains(q)) {
+              found.add(episode);
+            }
+          }
+        }
+      }
+    }
+
     setState(() => _results = found.take(30).toList());
   }
 
