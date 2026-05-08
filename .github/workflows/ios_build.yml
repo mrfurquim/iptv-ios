@@ -49,14 +49,13 @@ jobs:
 
           # Compila o App diretamente via Xcodebuild
           # Passar as flags por linha de comando força a aplicação em TODOS os Pods (resolve o erro do wakelock_plus)
-          # build (sem 'clean') evita que o Xcode apague os headers gerados no passo anterior
+          # NOTA: Não passar SYMROOT na linha de comando, pois isso quebra o Header Search Paths do CocoaPods
           xcodebuild build \
             -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            SYMROOT="$(PWD)/../build/ios" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_IDENTITY="" \
@@ -66,15 +65,19 @@ jobs:
 
       - name: Create IPA Payload
         run: |
-          # O Xcodebuild com SYMROOT coloca o app na pasta Release-iphoneos
           mkdir -p Payload
           
-          if [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
-            cp -R build/ios/Release-iphoneos/Runner.app Payload/
-          else
-            # Fallback caso ele salve no padrão do Flutter
-            cp -R build/ios/iphoneos/Runner.app Payload/
+          # O Xcodebuild vai jogar o Runner.app em alguma pasta do build/ ou DerivedData. 
+          # Usamos o find para localizar com segurança.
+          APP_PATH=$(find . -name "Runner.app" -type d | head -n 1)
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "Runner.app não encontrado!"
+            exit 1
           fi
+          
+          echo "Runner.app encontrado em: $APP_PATH"
+          cp -R "$APP_PATH" Payload/
           
           # Remove qualquer resquício de assinatura quebrada
           rm -rf Payload/Runner.app/_CodeSignature
