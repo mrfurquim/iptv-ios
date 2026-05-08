@@ -15,50 +15,76 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0' # Adjust if you need a specific version
+          flutter-version: '3.22.0'
           channel: 'stable'
           
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Prepare iOS Project
+      - name: Build iOS App
         run: |
-          # 1. Disable Code Signing & Xcode 15 Sandboxing for the Runner target ONLY
+          # Gera os arquivos do Xcode e Pods sem iniciar a compilação (evita erros de signing antecipados)
+          # O --config-only gera a pasta ios/Podfile e ios/Runner.xcworkspace
+          flutter build ios --config-only || flutter build ios --release --no-codesign || true
+
+          # Injeta permissões para o Runner principal
           echo "CODE_SIGNING_ALLOWED = NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED = NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_IDENTITY = \"-\"" >> ios/Flutter/Release.xcconfig
           echo "EXPANDED_CODE_SIGN_IDENTITY = \"-\"" >> ios/Flutter/Release.xcconfig
-          echo "ENABLE_USER_SCRIPT_SANDBOXING = NO" >> ios/Flutter/Release.xcconfig
-          echo "COMPILER_INDEX_STORE_ENABLE = NO" >> ios/Flutter/Release.xcconfig
           
-          # 2. Force iOS 14.0 in Xcode project
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 11.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' ios/Runner.xcodeproj/project.pbxproj || true
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' ios/Runner.xcodeproj/project.pbxproj || true
+          cd ios
           
-          # 3. Force iOS 14.0 & Disable Sandboxing in all CocoaPods targets
-          if [ -f ios/Podfile ]; then
-            sed -i '' "s/^# platform :ios.*/platform :ios, '14.0'/g" ios/Podfile
-            sed -i '' "s/^platform :ios.*/platform :ios, '14.0'/g" ios/Podfile
-            
-            ruby -i -e "puts ARGF.read.gsub(/flutter_additional_ios_build_settings\(target\)/, %q{flutter_additional_ios_build_settings(target)
-            target.build_configurations.each do |config|
-              config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
-              config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
-            end})" ios/Podfile
+          # Força o iOS 14.0 para as dependências antigas não quebrarem
+          if [ -f Podfile ]; then
+            sed -i '' "s/^# platform :ios.*/platform :ios, '14.0'/g" Podfile
+            sed -i '' "s/^platform :ios.*/platform :ios, '14.0'/g" Podfile
           fi
+          
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 11.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' Runner.xcodeproj/project.pbxproj || true
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' Runner.xcodeproj/project.pbxproj || true
+          
+          # Atualiza os Pods para garantir que o target 14.0 e as configs estejam prontas
+          pod install
 
-      - name: Build iOS App
-        run: flutter build ios --release --no-codesign
+          # Compila o App diretamente via Xcodebuild
+          # Passar as flags por linha de comando força a aplicação em TODOS os Pods (resolve o erro do wakelock_plus)
+          # build (sem 'clean') evita que o Xcode apague os headers gerados no passo anterior
+          xcodebuild build \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            SYMROOT="$(PWD)/../build/ios" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_IDENTITY="" \
+            EXPANDED_CODE_SIGN_IDENTITY="" \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO | xcpretty
 
       - name: Create IPA Payload
         run: |
+          # O Xcodebuild com SYMROOT coloca o app na pasta Release-iphoneos
           mkdir -p Payload
-          mv build/ios/iphoneos/Runner.app Payload/
-          zip -r app.ipa Payload
           
+          if [ -d "build/ios/Release-iphoneos/Runner.app" ]; then
+            cp -R build/ios/Release-iphoneos/Runner.app Payload/
+          else
+            # Fallback caso ele salve no padrão do Flutter
+            cp -R build/ios/iphoneos/Runner.app Payload/
+          fi
+          
+          # Remove qualquer resquício de assinatura quebrada
+          rm -rf Payload/Runner.app/_CodeSignature
+          
+          # Compacta como um .ipa válido
+          zip -qr app.ipa Payload
+
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iptv-player-ioss
+          name: iptv-player-ios
           path: app.ipa
 
