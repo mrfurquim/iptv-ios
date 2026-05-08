@@ -21,35 +21,35 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build IPA (Payload for SideStore)
+      - name: Prepare iOS Project
         run: |
-          # Gera os arquivos do Flutter e Pods (vai falhar no signing mas não tem problema, o que importa é preparar o projeto)
-          flutter build ios --release --no-codesign || true
+          # 1. Disable Code Signing for the Runner target ONLY (avoids breaking Pods in Xcode 15)
+          echo "CODE_SIGNING_ALLOWED = NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED = NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_IDENTITY = \"-\"" >> ios/Flutter/Release.xcconfig
+          echo "EXPANDED_CODE_SIGN_IDENTITY = \"-\"" >> ios/Flutter/Release.xcconfig
           
-          # Forçar versão do iOS para 14.0 no projeto Xcode
+          # 2. Force iOS 14.0 in Xcode project
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 11.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' ios/Runner.xcodeproj/project.pbxproj || true
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' ios/Runner.xcodeproj/project.pbxproj || true
           
-          # Forçar versão do iOS para 14.0 e corrigir Pods
+          # 3. Force iOS 14.0 in Podfile
           if [ -f ios/Podfile ]; then
             sed -i '' "s/^# platform :ios.*/platform :ios, '14.0'/g" ios/Podfile
             sed -i '' "s/^platform :ios.*/platform :ios, '14.0'/g" ios/Podfile
             
-            # Injetar a configuração de IPHONEOS_DEPLOYMENT_TARGET = 14.0 no post_install existente usando Ruby
+            # Inject post_install hook to force all Pods to compile for iOS 14.0
             ruby -i -e "puts ARGF.read.gsub(/flutter_additional_ios_build_settings\(target\)/, %q{flutter_additional_ios_build_settings(target)
             target.build_configurations.each do |config|
               config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
             end})" ios/Podfile
-            
-            cd ios && pod install && cd ..
           fi
-          
-          # Compila o app direto pelo Xcode forçando a desativação da assinatura da Apple
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos -allowProvisioningUpdates CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
-          
-          # Cria o formato do IPA (Payload)
-          cd ..
+
+      - name: Build iOS App
+        run: flutter build ios --release --no-codesign
+
+      - name: Create IPA Payload
+        run: |
           mkdir -p Payload
           mv build/ios/iphoneos/Runner.app Payload/
           zip -r app.ipa Payload
