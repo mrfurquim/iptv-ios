@@ -23,17 +23,11 @@ jobs:
 
       - name: Prepare iOS Project
         run: |
-          # 1. Disable Code Signing for the Runner target ONLY (avoids breaking Pods in Xcode 15)
-          echo "CODE_SIGNING_ALLOWED = NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGNING_REQUIRED = NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGNING_IDENTITY = \"-\"" >> ios/Flutter/Release.xcconfig
-          echo "EXPANDED_CODE_SIGN_IDENTITY = \"-\"" >> ios/Flutter/Release.xcconfig
-          
-          # 2. Force iOS 14.0 in Xcode project
+          # 1. Force iOS 14.0 in Xcode project
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 11.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' ios/Runner.xcodeproj/project.pbxproj || true
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 12.0/IPHONEOS_DEPLOYMENT_TARGET = 14.0/g' ios/Runner.xcodeproj/project.pbxproj || true
           
-          # 3. Force iOS 14.0 in Podfile
+          # 2. Force iOS 14.0 in Podfile
           if [ -f ios/Podfile ]; then
             sed -i '' "s/^# platform :ios.*/platform :ios, '14.0'/g" ios/Podfile
             sed -i '' "s/^platform :ios.*/platform :ios, '14.0'/g" ios/Podfile
@@ -45,13 +39,38 @@ jobs:
             end})" ios/Podfile
           fi
 
-      - name: Build iOS App
-        run: flutter build ios --release --no-codesign
+      - name: Build Flutter (AOT & Frameworks)
+        run: |
+          # This compiles Dart and generates Pods, but might fail at Xcode signing. We ignore the error.
+          flutter build ios --release --no-codesign || true
+
+      - name: Build iOS App with Xcode
+        run: |
+          cd ios
+          # The -destination and COMPILER_INDEX_STORE_ENABLE=NO flags fix the "ScanDependencies" Xcode 15 bug
+          xcodebuild clean build \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Create IPA Payload
         run: |
           mkdir -p Payload
-          mv build/ios/iphoneos/Runner.app Payload/
+          # xcodebuild outputs the .app in a different path when using standard build
+          # Usually it's in build/Release-iphoneos/ or DerivedData
+          # But flutter build ios configures SYMROOT. Let's find the .app dynamically
+          APP_PATH=$(find . -name "Runner.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Runner.app not found!"
+            exit 1
+          fi
+          mv "$APP_PATH" Payload/
           zip -r app.ipa Payload
           
       - name: Upload IPA Artifact
