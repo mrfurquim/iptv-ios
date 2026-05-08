@@ -30,6 +30,9 @@ class _MyAppState extends State<MyApp> {
   String? _error;
   bool _showSearch = false;
 
+  bool _needsCacheDecision = false;
+  String? _cachedContent;
+
   final _storageService = StorageService();
   final _apiService = ApiService();
 
@@ -42,43 +45,14 @@ class _MyAppState extends State<MyApp> {
   Future<void> _checkLocalCache() async {
     final cached = await _storageService.loadM3U();
     if (cached != null && cached.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showCacheDialog(cached);
+      setState(() {
+        _needsCacheDecision = true;
+        _cachedContent = cached;
+        _isLoading = false;
       });
     } else {
       await _fetchNewM3U();
     }
-  }
-
-  void _showCacheDialog(String cachedContent) {
-    setState(() {
-      _isLoading = false;
-    });
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('Lista Encontrada'),
-        content: Text('Você deseja usar a lista salva offline ou baixar uma versão atualizada da internet?'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() => _isLoading = true);
-              _processM3UContent(cachedContent);
-            },
-            child: Text('Usar Offline'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _fetchNewM3U();
-            },
-            child: Text('Baixar Atualizada'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _fetchNewM3U() async {
@@ -147,6 +121,50 @@ class _MyAppState extends State<MyApp> {
   }
 
   Widget _buildHome(BuildContext context) {
+    if (_needsCacheDecision) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.storage, size: 64, color: Colors.blue),
+              SizedBox(height: 24),
+              Text('Lista Offline Encontrada', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              SizedBox(height: 16),
+              Text('Deseja usar a lista offline ou baixar a mais recente?', textAlign: TextAlign.center),
+              SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    icon: Icon(Icons.offline_bolt),
+                    onPressed: () {
+                      setState(() {
+                        _needsCacheDecision = false;
+                        _isLoading = true;
+                      });
+                      _processM3UContent(_cachedContent!);
+                    },
+                    label: Text('Usar Offline'),
+                  ),
+                  SizedBox(width: 16),
+                  ElevatedButton.icon(
+                    icon: Icon(Icons.cloud_download),
+                    onPressed: () {
+                      setState(() {
+                        _needsCacheDecision = false;
+                      });
+                      _fetchNewM3U();
+                    },
+                    label: Text('Baixar Nova'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     if (_isLoading) {
       return Scaffold(
         body: Center(
