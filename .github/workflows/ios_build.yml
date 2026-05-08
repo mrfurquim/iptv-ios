@@ -20,10 +20,18 @@ jobs:
           
       - name: Install dependencies
         run: flutter pub get
-        
+
       - name: Build IPA (Payload for SideStore)
         run: |
-          flutter build ios --release --no-codesign
+          # Gera os arquivos do Flutter e Pods (vai falhar no signing mas não tem problema, o que importa é preparar o projeto)
+          flutter build ios --release --no-codesign || true
+          
+          # Compila o app direto pelo Xcode forçando a desativação da assinatura da Apple
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos -allowProvisioningUpdates CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          
+          # Cria o formato do IPA (Payload)
+          cd ..
           mkdir -p Payload
           mv build/ios/iphoneos/Runner.app Payload/
           zip -r app.ipa Payload
