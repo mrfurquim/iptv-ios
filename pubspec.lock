@@ -177,10 +177,9 @@ packages:
   flutter_cast_video:
     dependency: "direct main"
     description:
-      name: flutter_cast_video
-      sha256: e0c7dbd1dbd58b1ebea184ad4bcb2bc430d7173948114e0793e68b7a20db9987
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/flutter_cast_video"
+      relative: true
+    source: path
     version: "1.2.0"
   flutter_lints:
     dependency: "direct dev"

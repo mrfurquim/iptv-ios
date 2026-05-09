@@ -72,6 +72,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 _castController?.loadMedia(
                   widget.channel.url,
                   title: widget.channel.name,
+                  live: true,
                 );
               },
             ),
