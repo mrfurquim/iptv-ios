@@ -42,3 +42,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation("com.google.android.gms:play-services-cast-framework:21.3.0")
+    implementation("com.google.android.exoplayer:extension-cast:2.18.7")
+}

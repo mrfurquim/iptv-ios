@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:flutter_cast_video/flutter_cast_video.dart';
 import '../models/channel.dart';
 
 class PlayerScreen extends StatefulWidget {
@@ -15,6 +17,7 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen> {
   VideoPlayerController? _videoPlayerController;
   ChewieController? _chewieController;
+  ChromeCastController? _castController;
 
   @override
   void initState() {
@@ -53,6 +56,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(widget.channel.name, style: const TextStyle(color: Colors.white)),
+        actions: [
+          if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS))
+            ChromeCastButton(
+              size: 40.0,
+              color: Colors.white,
+              onButtonCreated: (controller) {
+                setState(() => _castController = controller);
+                _castController?.addSessionListener();
+              },
+              onSessionStarted: () {
+                // Pause the local video when casting starts
+                _chewieController?.pause();
+                
+                _castController?.loadMedia(
+                  widget.channel.url,
+                  title: widget.channel.name,
+                );
+              },
+            ),
+        ],
       ),
       body: Center(
         child: _chewieController != null

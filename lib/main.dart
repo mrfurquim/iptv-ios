@@ -74,9 +74,9 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  void _processM3UContent(String content) {
+  Future<void> _processM3UContent(String content) async {
     try {
-      final playlist = _apiService.parseContent(content);
+      final playlist = await _apiService.parseContentAsync(content);
       setState(() {
         _playlist = playlist;
         if (playlist.getGroups(ChannelType.live).isNotEmpty) {

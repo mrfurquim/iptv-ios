@@ -3,8 +3,8 @@ import 'package:iptv_player/models/channel.dart';
 import 'package:iptv_player/models/playlist.dart';
 
 class M3UParser {
-  /// Parse M3U content and return a Playlist
-  Playlist parse(String content) {
+  /// Parse M3U content and return a Playlist asynchronously to avoid UI freezing
+  Future<Playlist> parse(String content) async {
     if (content.trim().isEmpty) {
       throw FormatException('Conteúdo M3U vazio');
     }
@@ -13,7 +13,13 @@ class M3UParser {
     final channels = <Channel>[];
     Map<String, String> currentChannelData = {};
 
-    for (final line in lines) {
+    for (var i = 0; i < lines.length; i++) {
+      if (i % 2000 == 0) {
+        // Yield to the event loop every 2000 lines so UI doesn't freeze
+        await Future.delayed(Duration.zero);
+      }
+      
+      final line = lines[i];
       final trimmedLine = line.trim();
       if (trimmedLine.startsWith('#EXTINF:')) {
         currentChannelData = _parseExtInf(trimmedLine);
@@ -26,7 +32,9 @@ class M3UParser {
       }
     }
 
-    return _organizeChannels(channels);
+    // Also yield before organizing
+    await Future.delayed(Duration.zero);
+    return await _organizeChannelsAsync(channels);
   }
 
   Map<String, String> _parseExtInf(String line) {
@@ -122,12 +130,16 @@ class M3UParser {
     return null;
   }
 
-  Playlist _organizeChannels(List<Channel> channels) {
+  Future<Playlist> _organizeChannelsAsync(List<Channel> channels) async {
     final live = <String, List<Channel>>{};
     final movie = <String, List<Channel>>{};
     final series = <String, List<Series>>{};
 
-    for (final channel in channels) {
+    for (var i = 0; i < channels.length; i++) {
+      if (i % 2000 == 0) {
+        await Future.delayed(Duration.zero);
+      }
+      final channel = channels[i];
       switch (channel.type) {
         case ChannelType.live:
           live.putIfAbsent(channel.group, () => []).add(channel);

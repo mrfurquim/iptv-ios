@@ -22,12 +22,12 @@ class ApiService {
     }
   }
 
-  Playlist parseContent(String content) {
-    return _parser.parse(content);
+  Future<Playlist> parseContentAsync(String content) async {
+    return await _parser.parse(content);
   }
 
   Future<Playlist> fetchPlaylist({String url = defaultM3UUrl}) async {
     final content = await fetchRawPlaylist(url: url);
-    return parseContent(content);
+    return await parseContentAsync(content);
   }
 }
