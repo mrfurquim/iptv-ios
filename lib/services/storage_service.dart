@@ -7,6 +7,17 @@ import 'dart:io';
 class StorageService {
   static const _m3uCacheKey = 'iptv_m3u_cache';
   static const _favoritesKey = 'iptv_favorites';
+  static const _tmdbApiKey = 'iptv_tmdb_api_key';
+
+  Future<String?> getTMDBApiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_tmdbApiKey);
+  }
+
+  Future<void> saveTMDBApiKey(String apiKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tmdbApiKey, apiKey);
+  }
 
   Future<File?> _getLocalFile() async {
     if (kIsWeb) return null;

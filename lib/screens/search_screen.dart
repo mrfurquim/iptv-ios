@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iptv_player/models/channel.dart';
 import 'package:iptv_player/models/playlist.dart';
-import 'package:iptv_player/screens/player_screen.dart';
 class SearchScreen extends StatefulWidget {
   final Playlist playlist;
   final Function(Channel) onPlay;

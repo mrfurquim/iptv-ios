@@ -34,6 +34,9 @@ class _MyAppState extends State<MyApp> {
 
   bool _needsCacheDecision = false;
   String? _cachedContent;
+  
+  double _parseProgress = 0.0;
+  bool _isParsingBackground = false;
 
   final _storageService = StorageService();
   final _apiService = ApiService();
@@ -76,18 +79,39 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _processM3UContent(String content) async {
     try {
-      final playlist = await _apiService.parseContentAsync(content);
       setState(() {
-        _playlist = playlist;
-        if (playlist.getGroups(ChannelType.live).isNotEmpty) {
-          _selectedGroup = playlist.getGroups(ChannelType.live).first;
-        }
-        _isLoading = false;
+        _isParsingBackground = true;
+        _parseProgress = 0.0;
+        _error = null;
+      });
+
+      await _apiService.parseContentAsync(
+        content,
+        onProgress: (partialPlaylist, progress) {
+          setState(() {
+            _playlist = partialPlaylist;
+            _parseProgress = progress;
+            _isLoading = false; // Show Home screen as soon as we have initial content
+
+            if (_selectedGroup.isEmpty) {
+              final groups = partialPlaylist.getGroups(_selectedType);
+              if (groups.isNotEmpty) {
+                _selectedGroup = groups.first;
+              }
+            }
+          });
+        },
+      );
+
+      setState(() {
+        _isParsingBackground = false;
+        _parseProgress = 1.0;
       });
     } catch (e) {
       setState(() {
         _error = "Erro ao processar lista: $e";
         _isLoading = false;
+        _isParsingBackground = false;
       });
     }
   }
@@ -223,6 +247,8 @@ class _MyAppState extends State<MyApp> {
       onSearch: () => setState(() => _showSearch = true),
       onCloseSearch: () => setState(() => _showSearch = false),
       showSearch: _showSearch,
+      isParsingBackground: _isParsingBackground,
+      parseProgress: _parseProgress,
     );
   }
 }

@@ -22,12 +22,18 @@ class ApiService {
     }
   }
 
-  Future<Playlist> parseContentAsync(String content) async {
-    return await _parser.parse(content);
+  Future<Playlist> parseContentAsync(
+    String content, {
+    void Function(Playlist partialPlaylist, double progress)? onProgress,
+  }) async {
+    return await _parser.parse(content, onProgress: onProgress);
   }
 
-  Future<Playlist> fetchPlaylist({String url = defaultM3UUrl}) async {
+  Future<Playlist> fetchPlaylist({
+    String url = defaultM3UUrl,
+    void Function(Playlist partialPlaylist, double progress)? onProgress,
+  }) async {
     final content = await fetchRawPlaylist(url: url);
-    return await parseContentAsync(content);
+    return await parseContentAsync(content, onProgress: onProgress);
   }
 }

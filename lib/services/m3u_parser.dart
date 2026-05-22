@@ -1,21 +1,25 @@
-import 'dart:convert';
 import 'package:iptv_player/models/channel.dart';
 import 'package:iptv_player/models/playlist.dart';
 
 class M3UParser {
   /// Parse M3U content and return a Playlist asynchronously to avoid UI freezing
-  Future<Playlist> parse(String content) async {
+  Future<Playlist> parse(
+    String content, {
+    void Function(Playlist partialPlaylist, double progress)? onProgress,
+  }) async {
     if (content.trim().isEmpty) {
       throw FormatException('Conteúdo M3U vazio');
     }
 
     final lines = content.split('\n');
-    final channels = <Channel>[];
+    final playlist = Playlist();
     Map<String, String> currentChannelData = {};
+    int channelCount = 0;
+    const int updateBatchSize = 150; // Update UI every 150 channels
 
     for (var i = 0; i < lines.length; i++) {
-      if (i % 2000 == 0) {
-        // Yield to the event loop every 2000 lines so UI doesn't freeze
+      if (i % 1500 == 0) {
+        // Yield to the event loop so UI doesn't freeze
         await Future.delayed(Duration.zero);
       }
       
@@ -26,15 +30,46 @@ class M3UParser {
       } else if (trimmedLine.startsWith('http') && currentChannelData.isNotEmpty) {
         final channel = _createChannel(currentChannelData, trimmedLine);
         if (channel != null) {
-          channels.add(channel);
+          _addChannelToPlaylist(channel, playlist);
+          channelCount++;
+          
+          if (onProgress != null && channelCount % updateBatchSize == 0) {
+            // Create a shallow copy of maps to trigger a clean State rebuild
+            final progress = i / lines.length;
+            final partial = Playlist(
+              live: Map<String, List<Channel>>.from(playlist.live.map((k, v) => MapEntry(k, List<Channel>.from(v)))),
+              movie: Map<String, List<Channel>>.from(playlist.movie.map((k, v) => MapEntry(k, List<Channel>.from(v)))),
+              series: Map<String, List<Series>>.from(playlist.series.map((k, v) => MapEntry(k, List<Series>.from(v)))),
+            );
+            onProgress(partial, progress);
+            
+            // Give UI a tiny window to build
+            await Future.delayed(const Duration(milliseconds: 2));
+          }
         }
         currentChannelData = {};
       }
     }
 
-    // Also yield before organizing
-    await Future.delayed(Duration.zero);
-    return await _organizeChannelsAsync(channels);
+    if (onProgress != null) {
+      onProgress(playlist, 1.0);
+    }
+    
+    return playlist;
+  }
+
+  void _addChannelToPlaylist(Channel channel, Playlist playlist) {
+    switch (channel.type) {
+      case ChannelType.live:
+        playlist.live.putIfAbsent(channel.group, () => []).add(channel);
+        break;
+      case ChannelType.movie:
+        _organizeMovieChannel(channel, playlist.movie);
+        break;
+      case ChannelType.series:
+        _organizeSeriesChannel(channel, playlist.series);
+        break;
+    }
   }
 
   Map<String, String> _parseExtInf(String line) {
@@ -130,31 +165,7 @@ class M3UParser {
     return null;
   }
 
-  Future<Playlist> _organizeChannelsAsync(List<Channel> channels) async {
-    final live = <String, List<Channel>>{};
-    final movie = <String, List<Channel>>{};
-    final series = <String, List<Series>>{};
 
-    for (var i = 0; i < channels.length; i++) {
-      if (i % 2000 == 0) {
-        await Future.delayed(Duration.zero);
-      }
-      final channel = channels[i];
-      switch (channel.type) {
-        case ChannelType.live:
-          live.putIfAbsent(channel.group, () => []).add(channel);
-          break;
-        case ChannelType.movie:
-          _organizeMovieChannel(channel, movie);
-          break;
-        case ChannelType.series:
-          _organizeSeriesChannel(channel, series);
-          break;
-      }
-    }
-
-    return Playlist(live: live, movie: movie, series: series);
-  }
 
   void _organizeMovieChannel(
       Channel channel, Map<String, List<Channel>> movie) {
